@@ -99,6 +99,7 @@ CODE:
     ENTER;
     SAVESPTR(PL_compcv);
     PL_compcv = PL_main_cv;
+    CopLINE_set(PL_curcop, 0);
     Perl_lex_start(aTHX_ NULL, rsfp, 0);
     AV *result = newAV();
     while (1) {
@@ -107,21 +108,24 @@ CODE:
             break;
         }
         /* PerlIO_printf(PerlIO_stderr(), "token: %d\n", token); */
-
         int i=0;
         while (debug_tokens[i].token != 0) {
             if (debug_tokens[i].token == token) {
-                AV * row = newAV();
-                av_push(row, newSViv(token));
+                HV * row = newHV();
+                // hv_store(row, "token", 5, newSViv(debug_tokens[i].token), 0);
+                hv_store(row, "name", 4, newSVpv(debug_tokens[i].name, 0), 0);
+                //av_push(row, newSViv(token));
                 switch (debug_tokens[i].type) {
                 case TOKENTYPE_NONE:
                     break;
                 case TOKENTYPE_IVAL:
                 case TOKENTYPE_OPNUM: /* pl_yylval.ival contains an opcode number */
-                    av_push(row, newSViv(PL_parser->yylval.ival));
+                    hv_store(row, "type", 4, newSViv(PL_parser->yylval.ival), 0);
+                    //av_push(row, newSViv(PL_parser->yylval.ival));
                     break;
                 case TOKENTYPE_PVAL:
-                    av_push(row, newSVpv(PL_parser->yylval.pval, 0));
+                    hv_store(row, "type", 4, newSVpv(PL_parser->yylval.pval, 0), 0);
+                    //av_push(row, newSVpv(PL_parser->yylval.pval, 0));
                     break;
                 case TOKENTYPE_OPVAL: {
                     OP *op = PL_parser->yylval.opval;
@@ -129,11 +133,15 @@ CODE:
                         SV *rv = newRV_noinc(newSViv(PTR2IV(op)));
                         sv_bless(rv, gv_stashpv(b_op_class_name(aTHX_ op), 1));
                         SvREADONLY_on(rv);
-                        av_push(row, rv);
+                        hv_store(row, "type", 4, rv, 0);
+                        //av_push(row, rv);
                     }
                     break;
                 }
                 }
+                hv_store(row, "line", 4, newSViv(CopLINE(PL_curcop)), 0);
+                hv_store(row, "file", 4, newSVpv(CopFILE(PL_curcop), 0), 0);
+                hv_store(row, "package", 7, newSVpv(HvNAME(CopSTASH(PL_curcop)), 0), 0);
                 SV *token_obj = newRV_noinc((SV*)row);
                 sv_bless(token_obj, gv_stashpv("Perl::Lexer::Token", 1));
                 SvREADONLY_on(token_obj);
